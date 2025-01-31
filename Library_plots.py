@@ -9,11 +9,11 @@ import matplotlib
 import warnings
 warnings.filterwarnings("ignore")
 import random
-from numba import njit
+#from numba import njit
 import time
 import netCDF4
 import xarray as xr
-import mpu
+#import mpu
 
 
 def get_distance(lat_bs, lat_ps, lon_bs, lon_ps, lat_poi, lon_poi):
@@ -29,7 +29,7 @@ def get_distance(lat_bs, lat_ps, lon_bs, lon_ps, lat_poi, lon_poi):
 def get_seismicity_new_rates(index, len_bs, len_ps, new_rates):
    index_bs = [ix for ix in index if ix<=len_bs]
    index_ps = [ix for ix in index if ix>len_bs]
-
+   print(len(index), len_bs, len_ps)
    new_rates_bs = new_rates[index<=len_bs, :]
    new_rates_ps = new_rates[index>len_bs, :]
 
@@ -41,7 +41,7 @@ def retrieve_sampling_data(pathMC, lat_disagg, lon_disagg, len_bs, len_ps):
   new_rates = pd.read_csv(os.path.join(pathMC, 'new_rates_SIH.txt'), sep='\s+', engine='python', header=None, index_col=False).to_numpy()
   tmp_index =  pd.read_csv(os.path.join(pathMC, 'index_scenarios_SIH.txt'), sep='\s+', engine='python', index_col=False)
   scen_index = tmp_index["Sampled_Scenarios"].to_numpy()
-
+  
   mean_new_rates = new_rates.mean(axis=1)
   scen_index_bs, scen_index_ps, new_rates_bs, new_rates_ps = get_seismicity_new_rates(scen_index, len_bs, len_ps, new_rates)
 
@@ -59,15 +59,13 @@ def get_city(inpdir):
     city = "Catania"
   elif inpdir=="SR":
     city = "Siracusa"
-  elif inpdir=="LK":
-    city = "Larnaka"
   return city
 
 
-def panel(fig, region_map, df_disagg, df_sis, IF, seismicity, N):
+def panel(fig, inpdir, region_map, df_disagg, df_sis, IF, N, panel, letter):
     import pygmt
     fig.basemap(
-               region=region_map, projection="M6c",
+               region=region_map, projection="M10c",
                frame=["a5f5"]
                )
     grid_map = pygmt.datasets.load_earth_relief(
@@ -75,34 +73,87 @@ def panel(fig, region_map, df_disagg, df_sis, IF, seismicity, N):
               region=region_map
               )
     # Plot the downloaded grid with color-coding based on the elevation
-    fig.grdimage(grid=grid_map, region=region_map, projection="M6c", cmap="gray", transparency=60)
-    fig.coast(region=region_map,projection='M6c',shorelines='0.25p,black')
+    if (panel==1) or (panel==2):
+       fig.grdimage(grid=grid_map, region=region_map, projection="M10c", cmap="GMT_abyss.cpt", shading=True, transparency=20, frame=["+t{} IF".format(IF)])
+    else:
+       fig.grdimage(grid=grid_map, region=region_map, projection="M10c", cmap="GMT_abyss.cpt", shading=True, transparency=20)
+    fig.coast(region=region_map,projection='M10c',shorelines='0.5p,black', land="lightgrey")
+    hc_dir_disagg = "DISAGG_MAPS/{}".format(inpdir)
+    #fileBathy
+    grdfile = os.path.join(hc_dir_disagg,'grid_bathy.grd')
+    fgrid = xr.open_dataset(grdfile)
+    xgrid = fgrid['x'].values
+    ygrid = fgrid['y'].values
+
+    xmin = np.amin(xgrid)
+    xmax = np.amax(xgrid)
+    ymin = np.amin(ygrid)
+    ymax = np.amax(ygrid)
+    
+    inset_region = [xmin -0.05, 15.4, ymin-0.015, ymax+0.035] 
+    inundated_area = [[xmin, ymin, xmax, ymax]]
+  
+    if panel==1:
+     
+       city = get_city(inpdir)
+       poi_off = pd.read_csv('sis_poi_{}.txt'.format(city), engine='python', header=None, index_col=False).to_numpy().squeeze()
+       poi = poi_off[0], poi_off[1]
+       position="jTR+w3.8c/2.5c+o1.0c/0.2c"
+ 
+       with fig.inset(position=position, box="+plightgreen,+gwhite", margin=0.0): 
+         fig.basemap(
+                   region=inset_region, projection="M?"
+                   )
+         grid_map = pygmt.datasets.load_earth_relief(
+                   resolution="01s",
+                   region=inset_region
+                   )
+  
+         fig.grdimage(grid=grid_map, region = inset_region, projection="M?", cmap="GMT_abyss.cpt", transparency=20)
+         fig.coast(region=inset_region,projection='M?',shorelines='0.5p,black', land="lightgrey")
+        
+         fig.plot(region=inset_region, projection="M?",x=poi[0], y=poi[1], style="x0.2c", pen="1.5p,black", color="magenta4")
+         if inpdir=="CT":
+            fig.text(region=inset_region, projection="M?",x=poi[0]+0.1, y=poi[1] + 0.12, text="Catania", font="11p,Times-Bold", fill="white")
+         else:
+            fig.text(region=inset_region, projection="M?",x=poi[0]-0.09, y=poi[1] + 0.066, text="Siracusa", font="11p,Times-Bold",fill="white")
+
+         fig.plot(data=inundated_area, region=inset_region, projection="M?", style="r+s", pen="0.8p,magenta4")
+ 
 
     fig.plot(
             x=df_disagg.longitude,
             y=df_disagg.latitude,
-            color="grey48",
-            style="c0.065c",
+            color="240/210/255",
+            pen="200/160/220", #230/230/250",
+            transparency=20,
+            style="c0.12c",
             region=region_map,
-            projection="M6c"
+            projection="M10c"
             )
 
-    pygmt.makecpt(cmap="hot", series=[-10, -3, 1], log=True, reverse=True)
+    pygmt.makecpt(cmap="GMT_hot.cpt", series=[-10, -3, 1], log=True, reverse=True)
 
     fig.plot(
             x=df_sis.longitude,
             y=df_sis.latitude,
             color=df_sis.rates,
             cmap=True,
-            style="c0.065c",
+            style="c0.12c",
+            pen="black",
             region=region_map,
-            projection="M6c"
+            projection="M10c"
             )
-    if IF=='old':
-      fig.text(region=region_map, projection="M6c",x=29.5, y=33.5, text="{} (Old IF)".format(seismicity), font="8.5p,Times-Bold,white")
-    else:
-      fig.text(region=region_map, projection="M6c",x=29.5, y=33.5, text="{} (New IF)".format(seismicity), font="8.5p,Times-Bold,white")
-    fig.text(region=region_map, projection="M6c",x=29.5, y=32.5, text="N = {}".format(N), font="8.5p,Times-Bold,white")
+    #if IF=='old':
+    #  fig.text(region=region_map, projection="M6c",x=29.5, y=33.5, text="{} (Old IF)".format(seismicity), font="8.5p,Times-Bold,black", fill="white")
+    #else:
+    #  fig.text(region=region_map, projection="M6c",x=29.5, y=33.5, text="{} (New IF)".format(seismicity), font="8.5p,Times-Bold,black", fill="white")
+    fig.text(region=region_map, projection="M10c",x=29.5, y=31.5, text="N = {}".format(N), font="15p,Times-Bold,black", fill="white")
+    fig.text(region=region_map, projection="M10c",x=13, y=41.2, text="{}".format(letter), font="15p,Times-Roman,black", fill="white") 
+    ###### Box encompassing the large area ######
+    rectangle = [[inset_region[0], inset_region[2], inset_region[1], inset_region[3]]]
+    fig.plot(data=rectangle, region=region_map, projection="M10c", style="r+s", pen="1.2p,lightgreen")
+  
     return
 
 def get_sis_data_onshore(n, inpdir, poi):
