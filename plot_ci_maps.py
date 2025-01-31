@@ -1,7 +1,9 @@
+from Library_plots import get_city
 import sys
 import os
 import numpy as np
 #import sklearn.metrics
+import argparse
 import csv
 import cartopy
 import pandas as pd
@@ -40,9 +42,13 @@ def plot_hazard_map(**kwargs):
     if not os.path.exists(outdir):
         os.mkdir(outdir)
 
-    return_time = 9975#9975 wd['return_period']
-    forecast_time = 50#float(wd['forecast_time_window'])
-    poe_th = 0.005
+    if return_time == 475:
+      poe_th = 0.1
+    elif return_time == 2475:
+      poe_th = 0.02
+    elif return_time == 9975:
+      poe_th = 0.005
+
     #poe_thresholds = np.array([1-np.exp(-forecast_time*(arp**-1)) for arp in return_time])
  
     # loading thresholds
@@ -105,79 +111,114 @@ def plot_hazard_map(**kwargs):
    
     print(hmap_ci_old_sis_up.max(), hmap_ci_new_sis_up.max())
     sorted_inds = np.argsort(hmap_disagg)
-    plt.fill_between(
-       hmap_disagg[sorted_inds],
-       hmap_ci_new_sis_up[sorted_inds],
-       hmap_ci_old_sis_up[sorted_inds],
-       where=(hmap_ci_new_sis_up[sorted_inds]<=hmap_ci_old_sis_up[sorted_inds]),
-       label='95% CI',
-       interpolate=True,
-       color="grey",
-       alpha=0.3
-    )
+
+    if (inpdir=="SR") and (return_time==475):
+
+       plt.fill_between(
+           hmap_disagg[sorted_inds],
+           hmap_ci_old_sis_up[sorted_inds],
+           hmap_ci_new_sis_up[sorted_inds],
+           where=(hmap_ci_old_sis_up[sorted_inds]<=hmap_ci_new_sis_up[sorted_inds]),
+           label='95% CI',
+           interpolate=True,
+           color="purple",
+           alpha=0.3
+           )
+
+       plt.fill_between(
+           hmap_disagg[sorted_inds],
+           hmap_ci_old_sis_up[sorted_inds],
+           hmap_ci_old_sis_dw[sorted_inds],
+           label='95% CI',
+           color="gray",
+           alpha=0.5
+           )
+
+       plt.fill_between(
+           hmap_disagg[sorted_inds],
+           hmap_ci_old_sis_dw[sorted_inds],
+           hmap_ci_new_sis_dw[sorted_inds],
+           where=(hmap_ci_old_sis_dw[sorted_inds]>=hmap_ci_new_sis_dw[sorted_inds]),
+           interpolate=True,
+           label='95% CI',
+           color="purple",
+           alpha=0.3
+           )
+
+    else:
+       plt.fill_between(
+           hmap_disagg[sorted_inds],
+           hmap_ci_new_sis_up[sorted_inds],
+           hmap_ci_old_sis_up[sorted_inds],
+           where=(hmap_ci_new_sis_up[sorted_inds]<=hmap_ci_old_sis_up[sorted_inds]),
+           label='95% CI',
+           interpolate=True,
+           color="gray",
+           alpha=0.5
+           )
     
-    plt.fill_between(
-       hmap_disagg[sorted_inds],
-       hmap_ci_new_sis_up[sorted_inds],
-       hmap_ci_new_sis_dw[sorted_inds],
-       label='95% CI',
-       color="tab:blue",
-       alpha=0.2
-    )
+       plt.fill_between(
+           hmap_disagg[sorted_inds],
+           hmap_ci_new_sis_up[sorted_inds],
+           hmap_ci_new_sis_dw[sorted_inds],
+           label='95% CI',
+           color="purple",
+           alpha=0.3
+           )
     
-    plt.fill_between(
-       hmap_disagg[sorted_inds],
-       hmap_ci_new_sis_dw[sorted_inds],
-       hmap_ci_old_sis_dw[sorted_inds],
-       where=(hmap_ci_new_sis_dw[sorted_inds]>=hmap_ci_old_sis_dw[sorted_inds]),
-       interpolate=True,
-       label='95% CI',
-       color="grey",
-       alpha=0.3
-    )
+       plt.fill_between(
+           hmap_disagg[sorted_inds],
+           hmap_ci_new_sis_dw[sorted_inds],
+           hmap_ci_old_sis_dw[sorted_inds],
+           where=(hmap_ci_new_sis_dw[sorted_inds]>=hmap_ci_old_sis_dw[sorted_inds]),
+           interpolate=True,
+           label='95% CI',
+           color="gray",
+           alpha=0.5
+           )
     
-    ax.scatter(hmap_disagg, hmap_sis, s=15, edgecolor="black", color="midnightblue", alpha=0.5)
-    ax.set_xlabel("Disaggregation")
-    ax.set_ylabel("SIS")
+    #ax.scatter(hmap_disagg, hmap_sis, s=15, edgecolor="black", color="midnightblue", alpha=0.5)
+    ax.set_xlabel("Exact solution", fontsize=50)
+    ax.set_ylabel("Monte Carlo estimate", fontsize=50)
     ax.set_xlim([hmap_disagg.min(), hmap_disagg.max()])
-    ax.set_ylim([hmap_disagg.min(), hmap_disagg.max()])
+    ax.set_ylim([hmap_sis.min(), hmap_sis.max()])
+    ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", lw=4, c="yellow")
+    ax.scatter(hmap_disagg, hmap_sis, s=20, edgecolor="black", color="midnightblue", alpha=0.5)
+
     if return_time==475:
        plt.text(x=hmap_disagg.max()-0.5, y=0.5, s="N = {}".format(percentage),
-             fontsize=32, color="darkblue")
-
-       plt.text(x=0.1, y=1.2, s="Analytical CI 95% (old IF)",
-             fontsize=32, color="grey")
-       plt.text(x=0.1, y=1.13, s="Analytical CI 95% (new IF)",
-             fontsize=32, color="tab:blue")
+             fontsize=45, color="darkblue")
+       letter="a"
+       plt.text(x=0.1, y=hmap_sis.max()-0.2, s="Analytical CI 95% (old IF)",
+             fontsize=45, color="gray")
+       plt.text(x=0.1, y=hmap_sis.max()-0.3, s="Analytical CI 95% (new IF)",
+             fontsize=45, color="purple")
     elif return_time==2475:
        plt.text(x=hmap_disagg.max()-1, y=0.5, s="N = {}".format(percentage),
-             fontsize=32, color="darkblue")
-
-       plt.text(x=0.1, y=2.5, s="Analytical CI 95% (old IF)",
-             fontsize=32, color="grey")
-       plt.text(x=0.1, y=2.3, s="Analytical CI 95% (new IF)",
-             fontsize=32, color="tab:blue")
+             fontsize=45, color="darkblue")
+       letter="b"
+       plt.text(x=0.1, y=hmap_sis.max()-0.3, s="Analytical CI 95% (old IF)",
+             fontsize=45, color="gray")
+       plt.text(x=0.1, y=hmap_sis.max()-0.5, s="Analytical CI 95% (new IF)",
+             fontsize=45, color="purple")
 
     elif return_time==9975:
-       plt.text(x=hmap_disagg.max()-1.5, y=0.5, s="N = {}".format(percentage),
-             fontsize=32, color="darkblue")
-
-       plt.text(x=0.3, y=4, s="Analytical CI 95% (old IF)", 
-             fontsize=32, color="grey")
-       plt.text(x=0.3, y=3.7, s="Analytical CI 95% (new IF)", 
-             fontsize=32, color="tab:blue")
+       plt.text(x=hmap_disagg.max()-2.5, y=0.5, s="N = {}".format(percentage),
+             fontsize=45, color="darkblue")
+       letter="c"
+       plt.text(x=0.3, y=hmap_sis.max()-1, s="Analytical CI 95% (old IF)", 
+             fontsize=45, color="gray")
+       plt.text(x=0.3, y=hmap_sis.max()-1.35, s="Analytical CI 95% (new IF)", 
+             fontsize=45, color="purple")
     
-    #plt.tight_layout()
-    if inpdir=="CT":
-       city="Catania"
-       letter="a"
-    elif inpdir=="SR":
-       city="Siracusa"
-       letter="b"
-    
+    plt.yticks(fontsize=50)
+    plt.xticks(fontsize=50)
+    city = get_city(inpdir)
+    ax.text(-0.2, 1.08, "({})".format(letter), fontsize=50, color='black', transform=ax.transAxes,    ##000000
+             bbox=dict(facecolor='#ffffff', edgecolor='black', pad=4.0))
     #ax.text(-0.1, 1.01, "({})".format(letter), fontsize=25, color='black', transform=ax.transAxes,    ##000000
     #         bbox=dict(facecolor='#ffffff', edgecolor='black', pad=6.0))
-    ax.set_title('{} Flow depth [m]; ARP: {} years'.format(city, return_time), fontsize=34)
+    ax.set_title('{} Flow depth [m]; ARP: {} years'.format(city, return_time), fontsize=50)
     fig.savefig(os.path.join(outdir, "ci_{}_mean_inundated_site{}_ARP{}y.png".format(percentage, inpdir, return_time)),
                     format='png', dpi=300, bbox_inches="tight")
     plt.show()
@@ -205,8 +246,28 @@ def get_intensity(hc, mih, p_th):
 
     return z
 
-inpdir = "SR"#"SR"
-percentage = 3000
+def local_parser():
+    parser = argparse.ArgumentParser(description=sys.argv[0])
+    parser.add_argument('--offshore_poi', default=None, required=True, help='Where local S-PTHA is evaluated (e.g. CT, SR,..)')
+    parser.add_argument('--num_samples', default=None, required=True, help='Number of scenarios to be sampled from the ensemble')
+    parser.add_argument('--arp', default=None, required=True, help='Average return period')
+
+    args = parser.parse_args()
+
+    if not sys.argv[1:]:
+        print("Use -h or --help option for Help")
+        sys.exit(0)
+    return args
+#-----------------------------------------
+def from_local_parser():
+    local_opts = local_parser()
+    inpdir = local_opts.offshore_poi
+    percentage = local_opts.num_samples
+    arp = local_opts.arp
+    return str(inpdir), int(percentage), int(arp)
+
+#------------------------------------------------------------------------------------------------------------------------
+inpdir, percentage, return_time = from_local_parser()
 
 plot_hazard_map()
 
