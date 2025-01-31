@@ -11,4 +11,4 @@ To run the code, simply clone this repository and follow the instructions in the
 
 * A Abbate, G Davies, S Lorito, N Kalligeris, F Romano, R Tonini, M Volpe, Importance sampling of seismic tsunami sources with near-field emphasis for inundation PTHA: benchmarking with complete ensembles, Geophysical Journal International, 2025;, ggaf034, https://doi.org/10.1093/gji/ggaf034
 
-* Alice Abbate. (2024). abbalice/MC_SIS: MC_SIS (MC_SIS). Zenodo. https://doi.org/10.5281/zenodo.13862046
+* Alice Abbate. (2025). abbalice/MC_SIS/v1.1. In Geophysical Journal International. Zenodo. https://doi.org/10.5281/zenodo.14781090
