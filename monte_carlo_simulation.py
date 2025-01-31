@@ -19,7 +19,14 @@ import seaborn as sns
 from scipy import stats
 import matplotlib
 from numba import njit
+import types
 #=================================================================================================
+def bottom_offset(self, bboxes, bboxes2):
+    bottom = self.axes.bbox.ymin
+    self.offsetText.set(va="top", ha="left", fontsize=60)
+    oy = bottom - pad * self.figure.dpi / 72.0
+    self.offsetText.set_position((1, oy))
+
 @njit
 def single_exceedance_curve(thresholds, max_stage_point, rates):
     
@@ -147,7 +154,7 @@ def local_parser():
     parser.add_argument('--offshore_poi', default=None, required=True, help='Where local S-PTHA is evaluated (e.g. CT, SR,..)')
     parser.add_argument('--test_site', default=None, required=True, help='Where local S-PTHA is evaluated (e.g. CT, SR,..)')
     parser.add_argument('--mc_samples', default=None, required=True, help='Number of Monte Carlo samples')
-    parser.add_argument('--num_samples', default=None, required=True, help='Number of scenarios to be sampled from the ensemble')
+    #parser.add_argument('--num_samples', default=None, required=True, help='Number of scenarios to be sampled from the ensemble')
     parser.add_argument('--outdir', default=None, required=True, help='Name of the directory for the outputs')
 
     args = parser.parse_args()
@@ -162,30 +169,30 @@ def from_local_parser():
     inpdir = local_opts.offshore_poi
     test_site = local_opts.test_site
     n_iter = local_opts.mc_samples
-    percentage = local_opts.num_samples
+    #percentage = local_opts.num_samples
     outdir = local_opts.outdir
-    return str(inpdir), int(test_site), int(n_iter), int(percentage), str(outdir)
-
+    #return str(inpdir), int(test_site), int(n_iter), int(percentage), str(outdir)
+    return str(inpdir), int(test_site), int(n_iter), str(outdir)
 #------------------------------------------------------------------------------------------------------------------------
-inpdir, test_site, n_iter, percentage, outdir = from_local_parser()
+#inpdir, test_site, n_iter, percentage, outdir = from_local_parser()
+inpdir, test_site, n_iter, outdir = from_local_parser()
 #-------------------------------------------------------------------------------------------------------------------------
 matplotlib.rcParams['font.family'] = 'serif'
 matplotlib.rcParams['font.sans-serif'] = 'Times'
 
-
 # Defining the directory for storing the results
 #-------------------------------------------------------------------------------------------------------------------------
-outdir = outdir+'_perc' + str(percentage)+ '_{}'.format(inpdir)
+#outdir = outdir+'_perc' + str(percentage)+ '_{}'.format(inpdir)
+outdir = outdir + '_{}'.format(inpdir)
 #-------------------------------------------------------------------------------------------------------------------------
 # Defining directory for outputs
-
 try:
-  os.makedirs(os.path.join("MC_RESULTS", outdir))
+  os.makedirs(os.path.join("MC_RESULTS", outdir, inpdir))
 except:
-  os.path.exists(os.path.join("MC_RESULTS", outdir))
+  os.path.exists(os.path.join("MC_RESULTS", outdir, inpdir))
   print("Directory for outputs already there!")
 #----------------------------------------------------------------------------
-outdir = os.path.join("MC_RESULTS", outdir)
+outdir = os.path.join("MC_RESULTS", outdir, inpdir)
 #---------------------------
 # Coordinates of SIS POIs
 if inpdir=="CT":
@@ -196,11 +203,6 @@ elif inpdir=="SR":
   poi_off = pd.read_csv('sis_poi_siracusa.txt', engine='python', header=None, index_col=False).to_numpy().squeeze()
   region_map_SR = [15.15, 15.4, 37, 37.2]
   city = "Siracusa"
-
-elif inpdir=="LK":
-  poi_off = pd.read_csv('sis_poi_larnaka.txt', engine='python', header=None, index_col=False).to_numpy().squeeze()
-  region_map_LK = [33.55, 33.75, 34.85, 35.05]
-  city = "Larnaka"
 
 poi_on = pd.read_csv('HMAX_ONSHORE/poi_{}_{}_coord.txt'.format(test_site, inpdir), engine='python', header=None, index_col=False).to_numpy().squeeze()
 lon_sis, lat_sis = poi_off[0], poi_off[1]
@@ -216,12 +218,9 @@ ids_off = data_off["IDs_sim"].to_numpy()
 mw, lon, lat = get_parameters(ids_off)
 
 # Retrieve scenario rates
-if (inpdir == "CT") or (inpdir=="SR"):
-   fileRates_bs = "probs_BS_Sicily.txt"
-   fileRates_ps = "probs_PS_Sicily.txt"
-elif (inpdir == "LK"):
-   fileRates_bs = "probs_BS_Cyprus.txt"
-   fileRates_ps = "probs_PS_Cyprus.txt"
+#if (inpdir == "CT") or (inpdir=="SR"):
+fileRates_bs = "probs_BS_Sicily.txt"
+fileRates_ps = "probs_PS_Sicily.txt"
 
 prob_bs = pd.read_csv(fileRates_bs, engine='python', sep=',', header=None, index_col=False)
 prob_ps = pd.read_csv(fileRates_ps, engine='python', sep=',', header=None, index_col=False)
@@ -251,11 +250,7 @@ rates = rates.mean(axis=1)
 data_time = pd.read_csv("arrival_time_{}.txt".format(inpdir), engine="python", sep="\s+")
 time_sec = data_time["AT"].to_numpy()
 time_min = time_sec/60 # from seconds to hours
-if inpdir == "LK":
-   tmin = 30
-   #tmin = 1
-else:
-   tmin = 1
+tmin = 1
 
 time = np.array([max(t, tmin) for t in time_min])
 time = 1/time
@@ -278,11 +273,14 @@ df_mw = pd.DataFrame(data_mw)
 mw_bins = np.array(list(df_mw.groupby("Magnitude").groups.keys()))
 mw_counts = df_mw.groupby("Magnitude").count().to_numpy().squeeze()
 #===========================================
+# Flow depth
 pathHeight_ON = 'HMAX_ONSHORE/hmax_onshore_{}{}.txt'.format(inpdir,test_site)
 data_on = pd.read_csv(pathHeight_ON, engine='python', sep='\s+')
 hmax_on = data_on["MIH"].to_numpy()
 ids_on = data_on["IDs_sim"].to_numpy()
 
+
+#===========================================
 rates1 = np.concatenate((rates_bs, rates_ps), axis=0)
 lambda_true = exceedance_curve(thresholds, hmax_on, rates1)
 lambda_true_mean = lambda_true.mean(axis=1)
@@ -294,37 +292,6 @@ p98 = np.percentile(lambda_true, 98, axis=1)
 #===========================================
 # Monte Carlo simulation
 lambda_sis = np.zeros((len(thresholds), n_iter))
-# Analytical error onshore
-_, _, _, _, _, an_var, an_up, an_dw, _, _, an_var_old, an_up_old, an_dw_old, _, _ = get_sis_data_onshore(percentage, inpdir, test_site)
-_, _, _, _, _, _, _, _, _, _, old1500, _, _, _, _ = get_sis_data_onshore(1500, inpdir, test_site)
-
-
-
-
-fig, axes = plt.subplots(figsize=(35,15), ncols=3, constrained_layout=True)
-ax1 = axes[0]
-ax2 = axes[1]
-ax3 = axes[2]
-#=======================================
-# New
-pathNew = "MC_RESULTS/results_perc{}_{}".format(percentage, inpdir)
-df_nsis = pd.read_csv(os.path.join(pathNew, 'optimal_nsamples_SIH.txt'), sep='\s+', engine='python')
-n_sis = df_nsis["nSamples"].to_numpy()
-# Proposal
-proposal_offshore = hmax_off * mean_annual_rates * time
-lambda_sis = mc_simulation(thresholds, n_iter, percentage, mw, rates, hmax_on, proposal_offshore, n_sis)
-#------------
-# Old
-pathOld = "MC_RESULTS/gareth_perc{}_{}".format(percentage, inpdir)
-df_nsis = pd.read_csv(os.path.join(pathOld, 'optimal_nsamples_SIH.txt'), sep='\s+', engine='python')
-n_old = df_nsis["nSamples"].to_numpy()
-# Proposal
-proposal_old = hmax_off * mean_annual_rates 
-lambda_sis_old = mc_simulation(thresholds, n_iter, percentage, mw, rates, hmax_on, proposal_old, n_old)
-lambda_sis_mean = lambda_sis.mean(axis=1)
-
-
-
 
 # Which one? 
 #ix1 = np.argwhere(lambda_true_mean <= 2e-3)[0].squeeze()
@@ -332,173 +299,328 @@ ix1 = np.argwhere(lambda_true_mean <= 4e-4)[0].squeeze()
 #ix1 = np.argwhere(lambda_true_mean <= 1e-4)[0].squeeze()
 
 
+#if percentage==1500:
+fig, axes = plt.subplots(figsize=(35,30), nrows=2, ncols=3)#, constrained_layout=True)
 
-ax1.plot(thresholds, lambda_sis[:, :500], color='tab:blue', linewidth=0.1, alpha=0.2, label='')
-true_mean, = ax1.plot(thresholds, lambda_true_mean, color='black', linewidth=3.5, label='Exact mean')
-ci_new, = ax1.plot(thresholds, an_up, color='darkblue', linewidth=3.5, linestyle='-', label='Analytical c.i. 95% (new IF)')
-ax1.plot(thresholds, an_dw, color='darkblue', linewidth=3.5, linestyle='-', label='')
-ci_old, = ax1.plot(thresholds, an_up_old, color='tab:red', linewidth=3, linestyle='-', label='Analytical c.i. 95% (old IF)')
-ax1.plot(thresholds, an_dw_old, color='tab:red', linewidth=3.5, linestyle='-', label='')
-sis_mean, = ax1.plot(thresholds, lambda_sis_mean, color='mediumblue', linewidth=3.5, linestyle='-',  label='SIS mean')
+axes = axes.flatten()
+ax1 = axes[0]
+ax2 = axes[1]
+ax3 = axes[2]
+ax4 = axes[3]
+ax5 = axes[4]
+ax6 = axes[5]
 
+rect1 = ax1.patch
+rect2 = ax2.patch
+rect3 = ax3.patch
+rect4 = ax4.patch
+rect5 = ax5.patch
+rect6 = ax6.patch
+
+
+rect1.set_facecolor("whitesmoke")
+rect2.set_facecolor("whitesmoke")
+rect3.set_facecolor("whitesmoke")
+rect4.set_facecolor("whitesmoke")
+rect5.set_facecolor("whitesmoke")
+rect6.set_facecolor("whitesmoke")
+
+#=======================================
+# New
+pathNew1 = "MC_RESULTS/results_perc1500_{}".format(inpdir)
+df_nsis1 = pd.read_csv(os.path.join(pathNew1, 'optimal_nsamples_SIH.txt'), sep='\s+', engine='python')
+n_sis1 = df_nsis1["nSamples"].to_numpy()
+
+pathNew2 = "MC_RESULTS/results_perc6000_{}".format(inpdir)
+df_nsis2 = pd.read_csv(os.path.join(pathNew2, 'optimal_nsamples_SIH.txt'), sep='\s+', engine='python')
+n_sis2 = df_nsis2["nSamples"].to_numpy()
+
+# Proposal
+proposal_offshore = hmax_off * mean_annual_rates * time
+lambda_sis1 = mc_simulation(thresholds, n_iter, 1500, mw, rates, hmax_on, proposal_offshore, n_sis1)
+lambda_sis2 = mc_simulation(thresholds, n_iter, 6000, mw, rates, hmax_on, proposal_offshore, n_sis2)
+#------------
+# Old
+pathOld1 = "MC_RESULTS/gareth_perc1500_{}".format(inpdir)
+df_nsis1 = pd.read_csv(os.path.join(pathOld1, 'optimal_nsamples_SIH.txt'), sep='\s+', engine='python')
+n_old1 = df_nsis1["nSamples"].to_numpy()
+
+pathOld2 = "MC_RESULTS/gareth_perc6000_{}".format(inpdir)
+df_nsis2 = pd.read_csv(os.path.join(pathOld2, 'optimal_nsamples_SIH.txt'), sep='\s+', engine='python')
+n_old2 = df_nsis2["nSamples"].to_numpy()
+
+# Proposal
+proposal_old = hmax_off * mean_annual_rates 
+lambda_sis_old1 = mc_simulation(thresholds, n_iter, 1500, mw, rates, hmax_on, proposal_old, n_old1)
+lambda_sis_old2 = mc_simulation(thresholds, n_iter, 6000, mw, rates, hmax_on, proposal_old, n_old2)
+
+lambda_sis_mean1 = lambda_sis1.mean(axis=1)
+lambda_sis_mean2 = lambda_sis2.mean(axis=1)
+
+# Analytical error onshore
+_, _, _, _, _, an_var1, an_up1, an_dw1, _, _, an_var_old1, an_up_old1, an_dw_old1, _, _ = get_sis_data_onshore(1500, inpdir, test_site)
+_, _, _, _, _, an_var2, an_up2, an_dw2, _, _, an_var_old2, an_up_old2, an_dw_old2, _, _ = get_sis_data_onshore(6000, inpdir, test_site)
+
+old1500 = an_var_old1
+#=======================================================================================================================
+# 1500
+#=======================================================================================================================
+ax1.plot(thresholds, lambda_sis1[:, :500], color='tab:blue', linewidth=0.1, alpha=0.2, label='')
+sis1, = ax1.plot(np.NaN, np.NaN, color='tab:blue', linewidth=4, label='SIS mean (1 iter.)')
+true_mean, = ax1.plot(thresholds, lambda_true_mean, color='black', linewidth=4, label='Exact mean')
+ci_new, = ax1.plot(thresholds, an_up1, color='darkblue', linewidth=4, linestyle='-', label='Analytical 95% \n c.i. (new IF)')
+ax1.plot(thresholds, an_dw1, color='darkblue', linewidth=4, linestyle='-', label='')
+ax1.fill_between(thresholds, an_dw_old1, an_dw1, color='tab:red', alpha=0.6)
+ax1.fill_between(thresholds, an_up1, an_up_old1, color='tab:red', alpha=0.6)
+ci_old, = ax1.fill(np.NaN, np.NaN, 'tab:red', alpha=0.6, label="Analytical 95% \n c.i. (old IF)")
+sis_mean, = ax1.plot(thresholds, lambda_sis_mean1, color='gold', linewidth=4, linestyle='-.',  label='SIS mean (10 k iter.)')
+ax1.set_box_aspect(1)
 # Histograms
 #=======================================
-ax3.hist(lambda_sis[ix1, :], bins=100, color="tab:blue", alpha=0.1, density=True, label="", edgecolor='darkblue')
-ax3.hist(lambda_sis_old[ix1, :], bins=100, color="tab:red", alpha=0.3, density=True, label="", edgecolor='tab:red')
-x_new, p_new = normal(lambda_true_mean[ix1], an_var[ix1])
-x_old, p_old = normal(lambda_true_mean[ix1], an_var_old[ix1])
+ax3.hist(lambda_sis1[ix1, :], bins=100, color="tab:blue", alpha=0.1, density=True, label="", edgecolor='tab:blue')
+ax3.hist(lambda_sis_old1[ix1, :], bins=100, color="tab:red", alpha=0.3, density=True, label="", edgecolor='tab:red')
+x_new, p_new = normal(lambda_true_mean[ix1], an_var1[ix1])
+x_old, p_old = normal(lambda_true_mean[ix1], an_var_old1[ix1])
 old1500, _ = normal(lambda_true_mean[ix1], old1500[ix1])
 
-p_new, = ax3.plot(x_new, p_new, color="darkblue", linestyle='-.', linewidth=3.5, label="Analytical variance (new IF)")
-p_old, = ax3.plot(x_old, p_old, color="tab:red", linestyle='-.', linewidth=3.5, label="Analytical variance (old IF)")
+p_new, = ax3.plot(x_new, p_new, color="darkblue", linestyle='-.', linewidth=4, label="Analytical variance (new IF)")
+p_old, = ax3.plot(x_old, p_old, color="tab:red", linestyle='-.', linewidth=4, label="Analytical variance (old IF)")
 ax3.set_xlim([old1500.min(), old1500.max()])
 ax3.axvline(x=lambda_true_mean[ix1], color='green', linestyle='-.')
-plt.setp(ax3.get_yticklabels(), visible=True, fontsize=35)
-plt.setp(ax3.get_xticklabels(), visible=True, fontsize=35)
-ax3.set_ylabel("Density", fontsize=40)
+plt.setp(ax3.get_yticklabels(), visible=True, fontsize=50)
+ax3.set_ylabel("Density", fontsize=50)
+ax6.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))#0,0))
+ax3.ticklabel_format(useOffset=False)
+ax3.yaxis.offsetText.set_fontsize(50)
 
+ax3.set_box_aspect(1)
 # Epistemic
 #=========================================
-lambda_sis_mean, sis_p2, sis_p16, sis_p84, sis_p98, _, ci_new_up, ci_new_dw, mc_ci_new_up, mc_ci_new_dw, _, ci_old_up, ci_old_dw, mc_ci_old_up, mc_ci_old_dw = get_sis_data_onshore(percentage, inpdir, test_site)
-sis_mean, = ax2.plot(thresholds, lambda_sis_mean, color="darkblue", linewidth=3.5, linestyle='-', label='')
-true_percentiles1, = ax2.plot(thresholds, p2, color="darkmagenta", linewidth=3.5, alpha=0.6, label='Exact p2 - p98')
-ax2.plot(thresholds, p98, color="darkmagenta", linewidth=3.5, alpha=0.6, label='')
-true_percentiles2, = ax2.plot(thresholds, p16, color="darkorange", linewidth=3.5, alpha=0.6, label='Exact p16 - p84')
-ax2.plot(thresholds, p84, color="darkorange", linewidth=3.5, alpha=0.6, label='')
-ax2.plot(thresholds, sis_p2, color="black", linestyle=":", linewidth=3.5, label='SIS percentiles')
-ax2.plot(thresholds, sis_p98, color="black", linestyle=":", linewidth=3.5, label='')
-sis_percentiles, = ax2.plot(thresholds, sis_p16, color="black", linestyle=":", linewidth=3.5, label='')
-ax2.plot(thresholds, sis_p84, color="black", linestyle=":", linewidth=3.5, label='')
-ax2.fill_between(thresholds, mc_ci_new_dw, mc_ci_new_up, color="hotpink", alpha=0.2, label="Estimated 95% c.i. (new IF)")
-sis_ci, = ax2.fill(np.NaN, np.NaN, 'hotpink', alpha=0.2, label="Estimated 95% c.i. (new IF)")
+lambda_sis_mean, sis_p2, sis_p16, sis_p84, sis_p98, _, ci_new_up, ci_new_dw, mc_ci_new_up, mc_ci_new_dw, _, ci_old_up, ci_old_dw, mc_ci_old_up, mc_ci_old_dw = get_sis_data_onshore(1500, inpdir, test_site)
+ax2.plot(thresholds, lambda_sis_mean, color="tab:blue", linewidth=4, linestyle='-', label='SIS mean (1 iter.)')
+true_percentiles1, = ax2.plot(thresholds, p2, color="darkmagenta", linewidth=4, alpha=0.8, label='Exact p2 - p98')
+ax2.plot(thresholds, p98, color="darkmagenta", linewidth=4, alpha=0.8, label='')
+true_percentiles2, = ax2.plot(thresholds, p16, color="darkorange", linewidth=3.5, alpha=0.8, label='Exact p16 - p84')
+ax2.plot(thresholds, p84, color="darkorange", linewidth=4, alpha=0.8, label='')
+ax2.plot(thresholds, sis_p2, color="black", linestyle="-.", linewidth=4, label='SIS percentiles')
+ax2.plot(thresholds, sis_p98, color="black", linestyle="-.", linewidth=4, label='')
+sis_percentiles, = ax2.plot(thresholds, sis_p16, color="black", linestyle="-.", linewidth=4, label='SIS percentiles')
+ax2.plot(thresholds, sis_p84, color="black", linestyle="-.", linewidth=4, label='')
+ax2.fill_between(thresholds, mc_ci_new_dw, mc_ci_new_up, color="hotpink", alpha=0.4, label="Estimated 95%\nc.i. (new IF)")
+sis_ci, = ax2.fill(np.NaN, np.NaN, 'hotpink', alpha=0.4, label="Estimated 95% \n c.i. (new IF)")
 
+ax2.set_box_aspect(1)
+#ax1.legend(handles=[true_mean, sis_mean, sis1, ci_new, ci_old,
+#                    true_percentiles1, true_percentiles2, sis_percentiles, sis_ci,
+#                    p_new, p_old], bbox_to_anchor=(-0.4, 1.15, 4.7, 0.3), loc="lower left",  mode="expand", borderaxespad=0, ncol=3, fontsize=50)
 
 ax1.set_yscale('log')
 ax1.set_ylim([1e-6, 1])
 ax2.set_yscale('log')
 ax2.set_ylim([1e-6, 1])
 
-
-if (inpdir=="CT") or (inpdir=="SR"):
-  ax1.set_xlim([0, 7.5])
-  ax2.set_xlim([0, 7.5])
-  ax1.text(x=5, y=5*1e-5, s="N = {}".format(percentage), color="darkblue", fontsize=40)
+#if (inpdir=="CT") or (inpdir=="SR"):
+ax1.set_xlim([0, 7.5])
+ax2.set_xlim([0, 7.5])
+#ax1.text(x=0.2, y=4e-1, s="N = 1500", color="darkblue", fontsize=50)
+if inpdir=="SR":
+   ax1.text(x=0.2, y=3e-6, s="N = 1500", color="black", fontsize=48, bbox=dict(edgecolor="black", facecolor="white", pad=8))
 else:
-  ax1.set_xlim([0,5])
-  ax2.set_xlim([0, 5])
-  ax1.text(x=3.5, y=5*1e-5, s="N = {}".format(percentage), color="darkblue", fontsize=40)
+   ax1.text(x=0.2, y=1e-3, s="N = 1500", color="black", fontsize=48, bbox=dict(edgecolor="black", facecolor="white", pad=8))
 
-if (percentage==1500):
-   plt.setp(ax1.get_yticklabels(), visible=True, fontsize=40)
-   ax1.set_ylabel("Mean annual exceedance-rate", fontsize=40)
-   plt.setp(ax2.get_yticklabels(), visible=False)
-   plt.setp(ax1.get_xticklabels(), visible=False)
-   plt.setp(ax2.get_xticklabels(), visible=False)
-   plt.setp(ax3.get_xticklabels(), visible=False)
-   ax3.set_title('Flow depth = {} m'.format(round(thresholds[ix1], 2)), fontsize=40)
-   ax1.legend(handles=[true_mean, sis_mean, ci_new, ci_old, p_new, p_old, true_percentiles1, true_percentiles2, sis_percentiles, sis_ci], bbox_to_anchor=(0, 1.08, 3.5, 0.3), loc="lower left",
-                mode="expand", borderaxespad=0, ncol=4, fontsize=33)
-   ax2.text(x=1, y=0.98, s='Mean exceedance-rate = {}'.format(np.round(lambda_true_mean[ix1],4)), color='green', ha='left', va='top',
-            transform=ax2.get_xaxis_transform(), fontsize=30)
+ax1.axvline(x=thresholds[ix1], color='black', linestyle=':')
+# Annotate above the horizontal line
+#ax1.text(x=thresholds[ix1]+0.2, y=1e-4, s= '{} m'.format(thresholds[ix1]), 
+#             rotation=90, fontsize=35, color='green')
+ax1.axhline(y=lambda_true_mean[ix1], color='tab:purple', linestyle='-.')
+# Annotate above the horizontal line
+ax1.text(x=7.8, y = lambda_true_mean[ix1], s=np.round(lambda_true_mean[ix1],5),  
+             fontsize=35, color='tab:purple')
 
-   # Maps
+ax2.axhline(y=lambda_true_mean[ix1], color='tab:purple', linestyle='-.')
+#ax1.text(-0.2, 1.12, "(a)", bbox=dict(facecolor='#ffffff', edgecolor='black', pad=4.0), transform=ax1.transAxes,
+#         fontsize=50, va='top', ha='right')
+#ax2.text(-0.2, 1.12, "(b)", bbox=dict(facecolor='#ffffff', edgecolor='black', pad=4.0), transform=ax2.transAxes,
+#         fontsize=50, va='top', ha='right')
+#ax3.text(-0.2, 1.12, "(c)", bbox=dict(facecolor='#ffffff', edgecolor='black', pad=4.0), transform=ax3.transAxes,
+#         fontsize=50, va='top', ha='right')
 
-   axins = inset_axes(ax1, width="45%", height="65%", loc="upper right")
+ax1.text(0.16, 0.98, "(a)", bbox=dict(facecolor='white', edgecolor='grey', pad=8.0), transform=ax1.transAxes,
+         fontsize=48, va='top', ha='right')
+ax2.text(0.16, 0.98, "(b)", bbox=dict(facecolor='white', edgecolor='grey', pad=8.0), transform=ax2.transAxes,
+         fontsize=48, va='top', ha='right')
+ax3.text(0.16, 0.98, "(c)", bbox=dict(facecolor='white', edgecolor='grey', pad=8.0), transform=ax3.transAxes,
+         fontsize=48, va='top', ha='right')
 
-   lat_0 = lat.mean()
-   lon_0 = lon.mean()
-   if inpdir=="CT":
-     m = Basemap(llcrnrlon=15, llcrnrlat=37.3, urcrnrlon=15.17, urcrnrlat=37.550,
-            lat_0=lat_0, lon_0=lon_0,
-            projection="cyl",
-            resolution="f")
-     parallels = [37.35, 37.5]
-     # labels = [left,right,top,bottom]
-     m.drawparallels(parallels, labels=[1,0,0,0], fontsize=35)
-     meridians = [15.05, 15.15]
-     m.drawmeridians(meridians, labels=[0,0,0,1], fontsize=35)
-   elif inpdir=="SR":
-     m = Basemap(llcrnrlon=15.2, llcrnrlat=37, urcrnrlon=15.4, urcrnrlat=37.2,
-            lat_0=lat_0, lon_0=lon_0,
-            projection="cyl",
-            resolution="f")
-     parallels = [37.05, 37.15]
-     m.drawparallels(parallels, labels=[1,0,0,0], fontsize=35)
-     meridians =  [15.25, 15.35]
-     m.drawmeridians(meridians, labels=[0,0,0,1], fontsize=35)
-   elif inpdir =="LK":
-     m = Basemap(llcrnrlon=33.55, llcrnrlat=34.85, urcrnrlon=33.75, urcrnrlat=35.05,
-            lat_0=lat_0, lon_0=lon_0,
-            projection="cyl",
-            resolution="f")
-     parallels = [34.9, 35]
-     m.drawparallels(parallels, labels=[1,0,0,0], fontsize=35)
-     meridians = [33.6, 33.7]
-     m.drawmeridians(meridians, labels=[0,0,0,1], fontsize=35)
-   # 
-   m.drawcoastlines()
-   m.drawrivers()
-   m.drawmapboundary(fill_color="#A6CAE0")
+plt.setp(ax1.get_yticklabels(), visible=True, fontsize=50)
+ax1.set_ylabel("Annual exceedance-rate", fontsize=50)
+plt.setp(ax2.get_yticklabels(), visible=False)
+plt.setp(ax1.get_xticklabels(), visible=False)
+plt.setp(ax2.get_xticklabels(), visible=False)
+plt.setp(ax3.get_xticklabels(), visible=False)
+ax3.set_title('Flow depth = {} m'.format(round(thresholds[ix1], 2)), fontsize=50)
 
-   # 
-   m.fillcontinents(color='grey',lake_color='#A6CAE0')
-   m.scatter(lon_sis, lat_sis, marker = 'X', color='purple', s=300, label='')
+#ax2.text(x=0.3, y=0.98, s='Exc. rate = {}'.format(np.round(lambda_true_mean[ix1],5)), color='green', ha='left', va='top',
+#            transform=ax2.get_xaxis_transform(), fontsize=50)
 
-   ax1.axvline(x=thresholds[ix1], color='black', linestyle=':')
-   ax1.axhline(y=lambda_true_mean[ix1], color='green', linestyle='-.')
-   ax2.axhline(y=lambda_true_mean[ix1], color='green', linestyle='-.')
-   ax1.text(0.1, 1.04, "(a)", transform=ax1.transAxes,
-      fontsize=32, va='top', ha='right')
-   ax2.text(0.1, 1.04, "(b)", transform=ax2.transAxes,
-      fontsize=32, va='top', ha='right')
-   ax3.text(0.1, 1.04, "(c)", transform=ax3.transAxes,
-      fontsize=32, va='top', ha='right')
+# Maps
 
-   m.scatter(lon_on, lat_on, marker = 'v', color='darkred', s=300, label="Onshore POI")
-   plt.legend(loc="upper center", fontsize=30)
+#axins = inset_axes(ax1, width="50%", height="70%", loc="upper right")
+lat_0 = lat.mean()
+lon_0 = lon.mean()
+if inpdir=="CT":
+  axins = inset_axes(ax1, width="52%", height="72%", loc="upper right",
+                   bbox_to_anchor=(0.43, 0.43, 0.52, 0.72), bbox_transform=ax1.transAxes)
+  m = Basemap(llcrnrlon=15, llcrnrlat=37.3, urcrnrlon=15.17, urcrnrlat=37.550,
+              lat_0=lat_0, lon_0=lon_0,
+              projection="cyl",
+              resolution="f")
+#  parallels = [37.35, 37.5]
+  # labels = [left,right,top,bottom]
+#  m.drawparallels(parallels, labels=[1,0,0,0], fontsize=32)
+#  meridians = [15.05, 15.15]
+#  m.drawmeridians(meridians, labels=[0,0,0,1], fontsize=32)
+elif inpdir=="SR":
+  axins = inset_axes(ax1, width="70%", height="90%", loc="upper right",
+                   bbox_to_anchor=(0.4, 0.45, 0.70, 0.90), bbox_transform=ax1.transAxes)
+  m = Basemap(llcrnrlon=15.2, llcrnrlat=37, urcrnrlon=15.4, urcrnrlat=37.2,
+              lat_0=lat_0, lon_0=lon_0,
+              projection="cyl",
+              resolution="f")
+  #parallels = [37.05, 37.15]
+  #m.drawparallels(parallels, labels=[1,0,0,0], fontsize=32)
+  #meridians =  [15.25, 15.35]
+  #m.drawmeridians(meridians, labels=[0,0,0,1], fontsize=32)
+m.drawparallels([np.round(lat_on,2)], labels=[1,0,0,0], fontsize=35, color="#FF7F00", textcolor="#FF7F00")
+m.drawmeridians([np.round(lon_on,2)], labels=[0,0,0,1], fontsize=35, color="#FF7F00", textcolor="#FF7F00")
+# 
+m.drawcoastlines()
+m.drawrivers()
+m.drawmapboundary(fill_color="azure")
+
+# 
+m.fillcontinents(color='lightgray',lake_color='azure')
+m.scatter(np.round(lon_sis,2), np.round(lat_sis,2), marker = 'X', color='#000080', s=400, label='SIS POI')
+m.scatter(np.round(lon_on,2), np.round(lat_on,2), marker = 'v', color='#FF7F00', s=400, label="Onshore POI")
+plt.legend(loc="upper center", facecolor="white", edgecolor="#FF7F00", fontsize=30)
 
 #-------------------------
 
-elif percentage==3000:
-   plt.setp(ax1.get_yticklabels(), visible=True, fontsize=40)
-   ax1.set_ylabel("Mean annual exceedance-rate", fontsize=40)
-   plt.setp(ax2.get_yticklabels(), visible=False)
-   plt.setp(ax1.get_xticklabels(), visible=False)
-   plt.setp(ax2.get_xticklabels(), visible=False)
-   plt.setp(ax3.get_xticklabels(), visible=False)
-   ax1.text(0.1, 1.04, "(d)", transform=ax1.transAxes,
-      fontsize=32, va='top', ha='right')
-   ax2.text(0.1, 1.04, "(e)", transform=ax2.transAxes,
-      fontsize=32, va='top', ha='right')
-   ax3.text(0.1, 1.04, "(f)", transform=ax3.transAxes,
-      fontsize=32, va='top', ha='right')
+#elif percentage==3000:
+#   plt.setp(ax1.get_yticklabels(), visible=True, fontsize=50)
+#   ax1.set_ylabel("Annual exceedance-rate", fontsize=50)
+#   plt.setp(ax2.get_yticklabels(), visible=False)
+#   plt.setp(ax1.get_xticklabels(), visible=False)
+#   plt.setp(ax2.get_xticklabels(), visible=False)
+#   plt.setp(ax3.get_xticklabels(), visible=False)
+#   ax1.text(0.1, 1.10, "(d)", transform=ax1.transAxes,
+#      fontsize=50, va='top', ha='right')
+#   ax2.text(0.1, 1.10, "(e)", transform=ax2.transAxes,
+#      fontsize=50, va='top', ha='right')
+#   ax3.text(0.1, 1.10, "(f)", transform=ax3.transAxes,
+#      fontsize=50, va='top', ha='right')
 
+#else:
+#=======================================================================================================================
+# 6000
+#=======================================================================================================================
+ax4.plot(thresholds, lambda_sis2[:, :500], color='tab:blue', linewidth=0.1, alpha=0.2, label='')
+ax4.plot(thresholds, lambda_true_mean, color='black', linewidth=4, label='Exact mean')
+ax4.plot(thresholds, an_up2, color='darkblue', linewidth=4, linestyle='-', label='Analytical 95%\nc.i. (new IF)')
+ax4.plot(thresholds, an_dw2, color='darkblue', linewidth=4, linestyle='-', label='')
+ax4.fill_between(thresholds, an_dw_old2, an_dw2, color='tab:red', alpha=0.6)
+ax4.fill_between(thresholds, an_up2, an_up_old2, color='tab:red', alpha=0.6)
+ax4.plot(thresholds, lambda_sis_mean2, color='gold', linewidth=4, linestyle='-.',  label='SIS mean (10 k iter.)')
+
+ax4.legend(handles=[true_mean, sis_mean, sis1, ci_new, ci_old], frameon=True, edgecolor="grey", 
+           bbox_to_anchor=(0.01,1.04), loc="lower left", borderaxespad=0, ncol=1, fontsize=35)
+
+ax4.set_box_aspect(1)
+# Histograms
+#=======================================
+ax6.hist(lambda_sis2[ix1, :], bins=100, color="tab:blue", alpha=0.1, density=True, label="", edgecolor='tab:blue')
+ax6.hist(lambda_sis_old2[ix1, :], bins=100, color="tab:red", alpha=0.3, density=True, label="", edgecolor='tab:red')
+x_new, p_new = normal(lambda_true_mean[ix1], an_var2[ix1])
+x_old, p_old = normal(lambda_true_mean[ix1], an_var_old2[ix1])
+
+p_new, = ax6.plot(x_new, p_new, color="darkblue", linestyle='-.', linewidth=4, label="Analytical variance\n(new IF)")
+p_old, = ax6.plot(x_old, p_old, color="tab:red", linestyle='-.', linewidth=4, label="Analytical variance\n(old IF)")
+ax6.set_xlim([old1500.min(), old1500.max()])
+ax6.axvline(x=lambda_true_mean[ix1], color='tab:purple', linestyle='-.')
+plt.setp(ax6.get_yticklabels(), visible=True, fontsize=50)
+ax6.set_ylabel("Density", fontsize=50)
+
+ax6.legend(handles=[p_new, p_old], frameon=True, edgecolor="grey",
+           bbox_to_anchor=(0.02, 1.12), loc="lower left", borderaxespad=0, ncol=1, fontsize=35)
+
+ax6.set_box_aspect(1)
+# Epistemic
+#=========================================
+lambda_sis_mean, sis_p2, sis_p16, sis_p84, sis_p98, _, ci_new_up, ci_new_dw, mc_ci_new_up, mc_ci_new_dw, _, ci_old_up, ci_old_dw, mc_ci_old_up, mc_ci_old_dw = get_sis_data_onshore(6000, inpdir, test_site)
+ax5.plot(thresholds, lambda_sis_mean, color="tab:blue", linewidth=4, linestyle='-', label='SIS mean (1 iter.)')
+ax5.plot(thresholds, p2, color="darkmagenta", linewidth=4, alpha=0.8, label='Exact p2 - p98')
+ax5.plot(thresholds, p98, color="darkmagenta", linewidth=4, alpha=0.8, label='')
+ax5.plot(thresholds, p16, color="darkorange", linewidth=3.5, alpha=0.8, label='Exact p16 - p84')
+ax5.plot(thresholds, p84, color="darkorange", linewidth=4, alpha=0.8, label='')
+ax5.plot(thresholds, sis_p2, color="black", linestyle="-.", linewidth=4, label='SIS percentiles')
+ax5.plot(thresholds, sis_p98, color="black", linestyle="-.", linewidth=4, label='')
+ax5.plot(thresholds, sis_p16, color="black", linestyle="-.", linewidth=4, label='SIS percentiles')
+ax5.plot(thresholds, sis_p84, color="black", linestyle="-.", linewidth=4, label='')
+ax5.fill_between(thresholds, mc_ci_new_dw, mc_ci_new_up, color="hotpink", alpha=0.4, label="Estimated 95%\nc.i. (new IF)")
+
+ax5.legend(handles=[true_percentiles1, true_percentiles2, sis_percentiles, sis1, sis_ci], frameon=True, edgecolor="grey",
+           bbox_to_anchor=(0.06, 1.08), loc="lower left", borderaxespad=0, ncol=1, fontsize=35)
+
+ax5.set_box_aspect(1)
+ax4.set_yscale('log')
+ax4.set_ylim([1e-6, 1])
+ax5.set_yscale('log')
+ax5.set_ylim([1e-6, 1])
+
+#if (inpdir=="CT") or (inpdir=="SR"):
+ax4.set_xlim([0, 7.5])
+ax5.set_xlim([0, 7.5])
+
+if inpdir=="SR":
+   ax4.text(x=0.2, y=3e-6, s="N = 6000", color="black", bbox=dict(facecolor="white", edgecolor="black", pad=8.0), fontsize=48)
 else:
-   plt.setp(ax1.get_yticklabels(), visible=True, fontsize=40)
-   ax1.set_ylabel("Mean annual exceedance-rate", fontsize=40)
-   plt.setp(ax2.get_yticklabels(), visible=False)
-   plt.setp(ax2.get_xticklabels(), visible=True, fontsize=40)
-  
-   for label in ax3.xaxis.get_ticklabels()[::2]:
+   ax4.text(x=0.2, y=1e-3, s="N = 6000", color="black", bbox=dict(facecolor="white", edgecolor="black", pad=8.0), fontsize=48)
+ax4.text(0.16, 0.98, "(d)", bbox=dict(facecolor='white', edgecolor='grey', pad=8.0), transform=ax4.transAxes,
+         fontsize=48, va='top', ha='right')
+ax5.text(0.16, 0.98, "(e)", bbox=dict(facecolor='white', edgecolor='grey', pad=8.0), transform=ax5.transAxes,
+         fontsize=48, va='top', ha='right')
+ax6.text(0.16, 0.98, "(f)", bbox=dict(facecolor='white', edgecolor='grey', pad=8.0), transform=ax6.transAxes,
+         fontsize=48, va='top', ha='right')
+
+plt.setp(ax4.get_yticklabels(), visible=True, fontsize=50)
+ax4.set_ylabel("Annual exceedance-rate", fontsize=50)
+plt.setp(ax5.get_yticklabels(), visible=False)
+plt.setp(ax5.get_xticklabels(), visible=True, fontsize=50)
+   
+for label in ax6.xaxis.get_ticklabels()[::2]:
     label.set_visible(False)
-   ax3.set_xlabel("Mean annual exceedance-rate", fontsize=40)
-   plt.setp(ax1.get_xticklabels(), visible=True, fontsize=40)
-   ax1.set_xlabel("Flow depth [m]", fontsize=40)
-   plt.setp(ax2.get_xticklabels(), visible=True, fontsize=40)
-   ax2.set_xlabel("Flow depth [m]", fontsize=40)
-   ax1.text(0.1, 1.04, "(g)", transform=ax1.transAxes,
-      fontsize=32, va='top', ha='right')
-   ax2.text(0.1, 1.04, "(h)", transform=ax2.transAxes,
-      fontsize=32, va='top', ha='right')
-   ax3.text(0.1, 1.04, "(i)", transform=ax3.transAxes,
-      fontsize=32, va='top', ha='right')
+ax6.ticklabel_format(style='sci', axis='x', scilimits=(old1500.min(), old1500.max()))#0,0))
+plt.setp(ax6.get_xticklabels(), visible=True, fontsize=50)
+#ax6.ticklabel_format(useOffset=False)
+ax6.xaxis.offsetText.set_fontsize(50)
+pad = plt.rcParams["xtick.major.size"] + plt.rcParams["xtick.major.pad"]   
+ax6.xaxis._update_offset_text_position = types.MethodType(bottom_offset, ax6.xaxis)
+ax6.set_xlabel("Annual exceedance-rate", fontsize=50)
+plt.setp(ax4.get_xticklabels(), visible=True, fontsize=50)
+ax4.set_xlabel("Flow depth [m]", fontsize=50)
+plt.setp(ax5.get_xticklabels(), visible=True, fontsize=50)
+ax5.set_xlabel("Flow depth [m]", fontsize=50)
 
-plt.tight_layout()
-plt.savefig(outdir+"/FD{}_poi{}.png".format(thresholds[ix1], test_site))
+plt.subplots_adjust(wspace=0.5, hspace=0.2)
+#plt.tight_layout()
+plt.savefig("FD{}_poi{}.pdf".format(thresholds[ix1], test_site), format="pdf", bbox_inches='tight')
+plt.show()
 
+vr_new1 = np.round(100*abs(an_var1[ix1]-an_var_old1[ix1])/an_var_old1[ix1], 2)
+df = pd.DataFrame([vr_new1])
+df.to_csv(os.path.join(outdir, "variance_reduction_1500_{}m_poi{}.txt".format(thresholds[ix1], test_site)), sep=' ', index=False)
 
-vr_new = np.round(100*abs(an_var[ix1]-an_var_old[ix1])/an_var_old[ix1], 2)
-
-df = pd.DataFrame([vr_new])
-df.to_csv(os.path.join(outdir, "variance_reduction_{}m_poi{}.txt".format(thresholds[ix1], test_site)), sep=' ', index=False)
+vr_new2 = np.round(100*abs(an_var2[ix1]-an_var_old2[ix1])/an_var_old2[ix1], 2)
+df = pd.DataFrame([vr_new1])
+df.to_csv(os.path.join(outdir, "variance_reduction_6000_{}m_poi{}.txt".format(thresholds[ix1], test_site)), sep=' ', index=False)
 
