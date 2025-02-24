@@ -1,7 +1,6 @@
 from Library_sampling import *
 import seaborn as sns
 from scipy import stats
-
 #-----------------------------------------------Inizialization of arguments--------------------------------------------
 def local_parser():
     parser = argparse.ArgumentParser(description=sys.argv[0])
@@ -43,8 +42,8 @@ except:
 outdir = os.path.join("MC_RESULTS2", outdir)
 #---------------------------
 # Retrieve offshore height
-pathHeight_OFF = 'HMAX_OFFSHORE/hmax_{}.txt'.format(inpdir)
-data_off = pd.read_csv(pathHeight_OFF, engine='python', sep='\s+')
+pathHeight_OFF = 'DATA/HMAX_OFFSHORE/hmax_{}.txt'.format(inpdir)
+data_off = pd.read_csv(pathHeight_OFF, engine='python', sep=' ')
 hmax_off = data_off["MIH"].to_numpy()
 ids_off = data_off["IDs_sim"].to_numpy()
 
@@ -52,12 +51,8 @@ ids_off = data_off["IDs_sim"].to_numpy()
 mw, lon, lat = get_parameters(ids_off)
 
 # Retrieve scenario rates
-if (inpdir == "CT") or (inpdir=="SR"):
-   fileRates_bs = "/work/volpe/PTHA_old/SICILIA_ORIENTALE/Scenarios/from_TSUMAPS1.1/refinement_BS/final_list_BS_probs99ALL.txt"
-   fileRates_ps = "/work/volpe/PTHA_old/SICILIA_ORIENTALE/Scenarios/from_TSUMAPS1.1/refinement_PS/final_list_PS_probs99ALL.txt"
-elif (inpdir == "LK"):
-   fileRates_bs = "/nas/bandabardo/cat/CIPRO/scenario_list_BS_ALL_IDs98.probs"
-   fileRates_ps = "/nas/bandabardo/cat/CIPRO/scenario_list_PS_ALL_IDs98.probs"
+fileRates_bs = "DATA/probs_BS_Sicily.txt"
+fileRates_ps = "DATA/probs_PS_Sicily.txt"
 
 prob_bs = pd.read_csv(fileRates_bs, engine='python', sep=',', header=None, index_col=False)
 prob_ps = pd.read_csv(fileRates_ps, engine='python', sep=',', header=None, index_col=False)
@@ -135,61 +130,81 @@ ix = np.unique(ix_sis)
 data = {"Sampled_Scenarios": ids_scen[ix]}
 df_scen_sis = pd.DataFrame(data)
 df_scen_sis.to_csv(os.path.join(outdir, 'scenarios_SIH_unique.txt'), sep=' ', index=False)
+print("Number of sampled scenarios: {}/{}".format(len(ix), len(mw)))
 #---------------------------------------------------------------------------------------------------
-# CT 12, SR 4
 
-for i in range(12):
-  pathHeight_ON = 'HMAX_ONSHORE2/hmax_onshore_{}{}.txt'.format(inpdir,i)
-  data_on = pd.read_csv(pathHeight_ON, engine='python', sep='\s+')
-  #data_on["MIH"].replace(np.nan,0)
-  hmax_on = data_on["MIH"].to_numpy()
-  ids_on = data_on["IDs_sim"].to_numpy()
+if inpdir=="CT":
+   i = 1
+elif inpdir =="SR":
+   i = 5
 
-
-  lambda_true = exceedance_curve(thresholds, hmax_on, rates)
-  lambda_true_mean = lambda_true.mean(axis=1)
-
-  var_sis = analytical_variance_importance(mw, mw_bins, mean_annual_rates, hmax_on, proposal_offshore, thresholds, n_sis)
-  hmax_on_sis = hmax_on[ix_sis]
-  #mw_sis = mw[ix_sis]
-  #time_sis = time[ix_sis]
-  #emp_sis_up, emp_sis_dw, lambda_sis, var_sis = empirical_variance_importance(mw, mw_sis, mw_bins,
-  #                          mean_rates_sis, mean_annual_rates, hmax_sis, hmax_off, time, hmax_off_sis, time_sis, thresholds, n_sis)
-  lambda_sis = exceedance_curve(thresholds, hmax_on_sis, new_rates_sis)
-  lambda_sis_mean = lambda_sis.mean(axis=1)
-  an_sis_up = lambda_true_mean + 1.96 * var_sis
-  an_sis_dw = lambda_true_mean - 1.96 * var_sis
-
-  dt = 50
-  lambda_true_mean = 1-np.exp(-lambda_true_mean*dt)
-  lambda_sis_mean = 1-np.exp(-lambda_sis_mean*dt)
-  #emp_sis_up = 1-np.exp(-emp_sis_up*dt)
-  #emp_sis_dw = 1-np.exp(-emp_sis_dw*dt)
-  an_sis_up = 1-np.exp(-an_sis_up*dt)
-  an_sis_dw = 1-np.exp(-an_sis_dw*dt)
- #---------------------
-  #data= {"Thresholds": thresholds, "SIH": lambda_sis,
-  #     "AnSx": an_sis_up, "AnDx": an_sis_dw}
-  #df_sis = pd.DataFrame(data)
-  #df_sis.to_csv(os.path.join(outdir, 'Dataset_SIH_Onshore{}.txt'.format(i+1)), sep=' ', index=False)
+pathHeight_ON = 'DATA/HMAX_ONSHORE/hmax_onshore_{}{}.txt'.format(inpdir,i)
+data_on = pd.read_csv(pathHeight_ON, engine='python', sep=' ')
+hmax_on = data_on["MIH"].to_numpy()
+ids_on = data_on["IDs_sim"].to_numpy()
 
 
-  fig, ax = plt.subplots(figsize=(18,15))
-  ax.plot(thresholds, lambda_true_mean, color='black', linewidth=2, label='True')
-  ax.plot(thresholds, lambda_sis_mean, color='darkred', linestyle='-.', linewidth=2, label='SIS')
-  ax.plot(thresholds, an_sis_up, color='black', linewidth=1, linestyle='-.',  label='95% analytical CI')
-  ax.plot(thresholds, an_sis_dw, color='black', linewidth=1, linestyle='-.',  label='')
-  ax.fill_between(thresholds, an_sis_dw, an_sis_up, color='darkred', alpha=0.2)
-  #ax.plot(thresholds, emp_sis_up, color='darkred', linewidth=3, linestyle='-.', alpha=0.3, label='95% analytical CI (offshore)')
-  #ax.plot(thresholds, emp_sis_dw, color='darkred', linewidth=3, linestyle='-.', alpha=0.3, label='')
+lambda_true = exceedance_curve(thresholds, hmax_on, rates)
+lambda_true_mean = lambda_true.mean(axis=1)
+  
+p16 = np.percentile(lambda_true, 16, axis=1)
+p84 = np.percentile(lambda_true, 84, axis=1)
 
-  ax.set_yscale('log')
-  ax.set_ylim([5*1e-5, 0])
-  ax.set_xlabel("Maximum wave height [m]", fontsize=25)
-  ax.set_ylabel("Probability of exceedance (50 years)", fontsize=25)
-  plt.legend(fontsize=25)
-  plt.xticks(fontsize=25)
-  plt.yticks(fontsize=25)
-  plt.title("Onshore point {}".format(i+1), fontsize=30)
-  plt.savefig(outdir+'/onshore_{}_perc{}.png'.format(i+1,percentage))
+
+
+#var_an = analytical_variance_importance(mw, mw_bins, mean_annual_rates, hmax_on, proposal_offshore, thresholds, n_sis) 
+hmax_on_sis = hmax_on[ix_sis]
+lambda_sis = exceedance_curve(thresholds, hmax_on_sis, new_rates_sis)
+lambda_sis_mean = lambda_sis.mean(axis=1)
+p16_sis = np.percentile(lambda_sis, 16, axis=1)
+p84_sis = np.percentile(lambda_sis, 84, axis=1)
+var_sis = mc_variance_sis(mw, mw_sis, mw_bins, mean_rates_sis, mean_annual_rates, hmax_on_sis, hmax_off, proposal_offshore,
+                         hmax_off_sis, proposal_sis, thresholds, n_sis)
+
+
+  
+#an_sis_up = lambda_true_mean + 1.96 * var_an
+#an_sis_dw = lambda_true_mean - 1.96 * var_an
+
+emp_sis_up = lambda_sis_mean + 1.96 * var_sis
+emp_sis_dw = lambda_sis_mean - 1.96 * var_sis
+  
+
+dt = 50
+lambda_true_mean = 1-np.exp(-lambda_true_mean*dt)
+lambda_sis_mean = 1-np.exp(-lambda_sis_mean*dt)
+emp_sis_up = 1-np.exp(-emp_sis_up*dt)
+emp_sis_dw = 1-np.exp(-emp_sis_dw*dt)
+#an_sis_up = 1-np.exp(-an_sis_up*dt)
+#an_sis_dw = 1-np.exp(-an_sis_dw*dt)
+p16 = 1 - np.exp(-p16*dt)
+p84 = 1 - np.exp(-p84*dt)
+p16_sis = 1 - np.exp(-p16_sis*dt)
+p84_sis = 1 - np.exp(-p84_sis*dt)
+#---------------------
+
+
+fig, ax = plt.subplots(figsize=(18,15))
+ax.plot(thresholds, lambda_true_mean, color='black', linewidth=2, label='True')
+ax.plot(thresholds, lambda_sis_mean, color='darkred', linestyle='-.', linewidth=2, label='SIS')
+#ax.plot(thresholds, an_sis_up, color='black', linewidth=1, linestyle='-.',  label='95% analytical CI')
+#ax.plot(thresholds, an_sis_dw, color='black', linewidth=1, linestyle='-.',  label='')
+ax.fill_between(thresholds, emp_sis_dw, emp_sis_up, color='darkred', alpha=0.2)
+ax.plot(thresholds, emp_sis_up, color='darkred', linewidth=3, linestyle='-.', alpha=0.3, label='95% analytical CI (offshore)')
+ax.plot(thresholds, emp_sis_dw, color='darkred', linewidth=3, linestyle='-.', alpha=0.3, label='')
+ax.plot(thresholds, p16, color='green', linewidth=1, linestyle='-.',  label='p16 - p84')
+ax.plot(thresholds, p84, color='green', linewidth=1, linestyle='-.',  label='')
+ax.plot(thresholds, p16_sis, color='black', linewidth=1, linestyle=':',  label='')
+ax.plot(thresholds, p84_sis, color='black', linewidth=1, linestyle=':',  label='')
+ax.set_yscale('log')
+ax.set_ylim([5*1e-5, 1])
+ax.set_xlabel("Maximum wave height [m]", fontsize=25)
+ax.set_ylabel("Probability of exceedance (50 years)", fontsize=25)
+plt.legend(fontsize=25)
+plt.xticks(fontsize=25)
+plt.yticks(fontsize=25)
+plt.title("Onshore point {}".format(i+1), fontsize=30)
+plt.savefig(outdir+'/onshore_{}_perc{}.png'.format(i+1,percentage))
+  
+  
 
