@@ -44,7 +44,7 @@ outdir = os.path.join("MC_RESULTS2", outdir)
 #---------------------------
 # Retrieve offshore height
 pathHeight_OFF = 'DATA/HMAX_OFFSHORE/hmax_{}.txt'.format(inpdir)
-data_off = pd.read_csv(pathHeight_OFF, engine='python', sep='\s+')
+data_off = pd.read_csv(pathHeight_OFF, engine='python', sep=' ')
 hmax_off = data_off["MIH"].to_numpy()
 ids_off = data_off["IDs_sim"].to_numpy()
 
@@ -76,7 +76,7 @@ rates = np.concatenate((rates_bs, rates_ps), axis=0)
 mean_annual_rates = rates.mean(axis=1)
 
 # Retrieve arrival time
-data_time = pd.read_csv("DATA/arrival_time_{}.txt".format(inpdir), engine="python", sep="\s+")
+data_time = pd.read_csv("DATA/arrival_time_{}.txt".format(inpdir), engine="python", sep=" ")
 time_sec = data_time["AT"].to_numpy()
 time_min = time_sec/60 # from seconds to hours
 tmin = 1
@@ -141,15 +141,13 @@ df_scen_sis = pd.DataFrame(data)
 df_scen_sis.to_csv(os.path.join(outdir, 'scenarios_SIH_unique.txt'), sep=' ', index=False)
 print("Number of sampled scenarios: {}/{}".format(len(ix), len(mw)))
 #---------------------------------------------------------------------------------------------------
-# CT 12, SR 4
-
 if inpdir=="CT":
    i = 1
 elif inpdir =="SR":
    i = 5
 
 pathHeight_ON = 'DATA/HMAX_ONSHORE/hmax_onshore_{}{}.txt'.format(inpdir,i)
-data_on = pd.read_csv(pathHeight_ON, engine='python', sep='\s+')
+data_on = pd.read_csv(pathHeight_ON, engine='python', sep=' ')
 hmax_on = data_on["MIH"].to_numpy()
 ids_on = data_on["IDs_sim"].to_numpy()
 
